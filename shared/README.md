@@ -1,8 +1,5 @@
 # Shared
 
-Contracts and types shared between the Loot frontend and backend.
-
-This directory is the single source of truth for API shapes, event schemas, and
-domain vocabulary (topics, readiness scoring inputs, sync payloads). As the project
-matures, prefer generating client/server bindings from a shared OpenAPI spec here
-rather than duplicating models in `frontend/` and `backend/`.
+There are no shared code contracts yet. The FastAPI schemas and frontend TypeScript
+types currently describe the same API independently. Generate client types from the
+FastAPI OpenAPI document when the API shape stabilizes so both sides stay in sync.

@@ -1,6 +1,25 @@
+"""Loot Wallet database models.
+
+Domain hierarchy:
+  CardIssuer → CardProduct → RewardRule
+  User → UserCard (links to CardProduct)
+    User → Transaction → reward estimates
+  User → Subscription
+"""
+
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Boolean, Float, Table
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -10,130 +29,189 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# Association table: problems <-> topics (many-to-many)
-problem_topics = Table(
-    "problem_topics",
-    Base.metadata,
-    Column("problem_id", Integer, ForeignKey("problems.id"), primary_key=True),
-    Column("topic_id", Integer, ForeignKey("topics.id"), primary_key=True),
-)
+# ── Card Catalog (master data — not user-specific) ─────────────────────
 
+class CardIssuer(Base):
+    """A bank or financial institution that issues credit cards."""
+    __tablename__ = "card_issuers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(128), unique=True, nullable=False)      # "HDFC Bank", "ICICI", "American Express"
+    slug = Column(String(64), unique=True, nullable=False)       # "hdfc", "icici", "amex"
+    logo_url = Column(String(512))
+    country = Column(String(4), default="IN")
+
+    products = relationship("CardProduct", back_populates="issuer", cascade="all, delete-orphan")
+
+
+class CardProduct(Base):
+    """A specific credit card product offered by an issuer.
+
+    E.g. HDFC Infinia, ICICI Amazon Pay, Amex Gold.
+    Contains base reward info; detailed per-category rules live in RewardRule.
+    """
+    __tablename__ = "card_products"
+    __table_args__ = (
+        UniqueConstraint("issuer_id", "slug", name="uq_issuer_product_slug"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    issuer_id = Column(Integer, ForeignKey("card_issuers.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(256), nullable=False)                   # "Infinia", "Regalia Gold"
+    slug = Column(String(128), nullable=False)                   # "infinia", "regalia-gold"
+    network = Column(String(32), nullable=False)                 # visa, mastercard, rupay, amex, diners
+    card_tier = Column(String(32), default="standard")           # standard, gold, platinum, super-premium
+    annual_fee = Column(Numeric(10, 2), default=0)
+    reward_currency = Column(String(64), default="points")       # points, cashback, miles, thankyou-points
+    base_earn_rate = Column(Numeric(6, 4), default=0)            # default earn rate (e.g. 0.01 = 1%)
+    point_value = Column(Numeric(6, 4), default=0.25)            # value of 1 point in INR (for comparison)
+    image_url = Column(String(512))
+    benefits = Column(JSON, default=dict)                        # lounges, insurance, golf, etc.
+    country = Column(String(4), default="IN")
+    is_active = Column(Boolean, default=True)
+
+    issuer = relationship("CardIssuer", back_populates="products")
+    reward_rules = relationship("RewardRule", back_populates="card_product", cascade="all, delete-orphan")
+    user_cards = relationship("UserCard", back_populates="card_product")
+
+
+class RewardRule(Base):
+    """A reward earning rule for a specific card + spending category.
+
+    E.g. "HDFC Diners Black earns 5x on dining, capped at 5000 points/month."
+    Handles rotating categories via valid_from / valid_to.
+    """
+    __tablename__ = "reward_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    card_product_id = Column(Integer, ForeignKey("card_products.id", ondelete="CASCADE"), nullable=False)
+    category = Column(String(64), nullable=False)                # dining, grocery, fuel, travel, online, utilities, etc.
+    earn_rate = Column(Numeric(8, 4), nullable=False)            # multiplier (e.g. 5.0 = 5x) or percentage
+    earn_type = Column(String(16), default="multiplier")         # "multiplier" or "cashback_pct"
+    monthly_cap = Column(Numeric(12, 2))                         # max reward value per month (NULL = uncapped)
+    quarterly_cap = Column(Numeric(12, 2))
+    min_spend = Column(Numeric(12, 2))                           # minimum transaction amount to earn bonus
+    valid_from = Column(DateTime(timezone=True))
+    valid_to = Column(DateTime(timezone=True))                   # NULL = permanent rule
+    conditions = Column(JSON, default=dict)                      # merchant-specific conditions, exclusions
+
+    card_product = relationship("CardProduct", back_populates="reward_rules")
+
+
+# ── Merchants ───────────────────────────────────────────────────────────
+
+class Merchant(Base):
+    """Enriched merchant database for accurate category classification."""
+    __tablename__ = "merchants"
+    __table_args__ = (
+        UniqueConstraint("normalized_name", name="uq_merchant_normalized"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    raw_name = Column(String(512), nullable=False)               # as seen in SMS / statement
+    normalized_name = Column(String(256), nullable=False)        # cleaned name for matching
+    display_name = Column(String(256))                           # pretty name for UI
+    category = Column(String(64), nullable=False)                # dining, grocery, fuel, etc.
+    subcategory = Column(String(64))                             # fast_food, fine_dining, etc.
+    mcc_code = Column(String(8))                                 # Merchant Category Code
+    logo_url = Column(String(512))
+    metadata_ = Column("metadata", JSON, default=dict)
+
+    transactions = relationship("Transaction", back_populates="merchant")
+
+
+# ── Users ───────────────────────────────────────────────────────────────
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(255), unique=True, index=True, nullable=False)
-    email = Column(String(255), unique=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    username = Column(String(128), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    display_name = Column(String(128))
+    country = Column(String(4), default="IN")
+    onboarded = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
-    submissions = relationship("Submission", back_populates="user")
-    connections = relationship("PlatformConnection", back_populates="user")
+    cards = relationship("UserCard", back_populates="user", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
 
 
-class PlatformConnection(Base):
-    __tablename__ = "platform_connections"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    platform = Column(String(64), nullable=False)  # leetcode, codeforces, ...
-    external_username = Column(String(255), nullable=False)
-    last_synced_at = Column(DateTime(timezone=True))
-    enabled = Column(Boolean, default=True)
-
-    user = relationship("User", back_populates="connections")
-
-
-class Problem(Base):
-    __tablename__ = "problems"
+class UserCard(Base):
+    """A card that a user has added to their wallet."""
+    __tablename__ = "user_cards"
+    __table_args__ = (
+        UniqueConstraint("user_id", "card_product_id", "last_four", name="uq_user_card_product_last4"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    platform = Column(String(64), nullable=False)
-    external_id = Column(String(255), nullable=False)
-    title = Column(String(512), nullable=False)
-    difficulty = Column(String(32))  # easy, medium, hard
-    url = Column(String(1024))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    card_product_id = Column(Integer, ForeignKey("card_products.id"), nullable=False)
+    nickname = Column(String(64))                                # user's custom name for this card
+    last_four = Column(String(4))                                # for SMS matching
+    is_default = Column(Boolean, default=False)                  # user's current "default" card
+    is_active = Column(Boolean, default=True)
+    added_at = Column(DateTime(timezone=True), default=utcnow)
+
+    user = relationship("User", back_populates="cards")
+    card_product = relationship("CardProduct", back_populates="user_cards")
+    transactions = relationship("Transaction", back_populates="card_used", foreign_keys="Transaction.card_id")
+
+
+# ── Transactions ────────────────────────────────────────────────────────
+
+class Transaction(Base):
+    """A purchase transaction — imported from SMS, email, or manual entry."""
+    __tablename__ = "transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    card_id = Column(Integer, ForeignKey("user_cards.id", ondelete="SET NULL"), index=True)
+    merchant_id = Column(Integer, ForeignKey("merchants.id", ondelete="SET NULL"), index=True)
+
+    merchant_raw = Column(String(512))                           # raw merchant string from SMS/statement
+    amount = Column(Numeric(14, 2), nullable=False)
+    currency = Column(String(4), default="INR")
+    category = Column(String(64))                                # AI-classified spending category
+    source = Column(String(32), default="manual")                # sms, email, manual, api
+
+    # Routing analysis
+    reward_earned = Column(Numeric(12, 2), default=0)            # reward value on the card actually used
+    optimal_card_id = Column(Integer, ForeignKey("user_cards.id", ondelete="SET NULL"))
+    optimal_reward = Column(Numeric(12, 2), default=0)           # reward value on the best card
+    reward_missed = Column(Numeric(12, 2), default=0)            # delta (opportunity cost)
+
+    transacted_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
-    topics = relationship("Topic", secondary=problem_topics, back_populates="problems")
-    submissions = relationship("Submission", back_populates="problem")
-    knowledge_page = relationship("KnowledgePage", back_populates="problem", uselist=False)
+    user = relationship("User", back_populates="transactions")
+    card_used = relationship("UserCard", foreign_keys=[card_id], back_populates="transactions")
+    optimal_card = relationship("UserCard", foreign_keys=[optimal_card_id])
+    merchant = relationship("Merchant", back_populates="transactions")
 
 
-class Topic(Base):
-    __tablename__ = "topics"
+# ── Subscriptions ───────────────────────────────────────────────────────
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(128), unique=True, nullable=False)
-
-    problems = relationship("Problem", secondary=problem_topics, back_populates="topics")
-
-
-class Submission(Base):
-    __tablename__ = "submissions"
+class Subscription(Base):
+    """A recurring charge detected from transaction patterns."""
+    __tablename__ = "subscriptions"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
-    external_submission_id = Column(String(255))
-    language = Column(String(64))
-    source_code = Column(Text)
-    runtime_ms = Column(Integer)
-    memory_kb = Column(Integer)
-    accepted = Column(Boolean, default=False)
-    submitted_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), default=utcnow)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    merchant_id = Column(Integer, ForeignKey("merchants.id", ondelete="SET NULL"))
+    name = Column(String(256), nullable=False)                   # "Netflix", "Spotify", "Swiggy One"
+    amount = Column(Numeric(12, 2))
+    currency = Column(String(4), default="INR")
+    frequency = Column(String(16), default="monthly")            # monthly, annual, weekly
+    card_id = Column(Integer, ForeignKey("user_cards.id", ondelete="SET NULL"))
+    optimal_card_id = Column(Integer, ForeignKey("user_cards.id", ondelete="SET NULL"))
+    status = Column(String(16), default="active")                # active, paused, cancelled
+    next_charge_at = Column(DateTime(timezone=True))
+    detected_at = Column(DateTime(timezone=True), default=utcnow)
 
-    user = relationship("User", back_populates="submissions")
-    problem = relationship("Problem", back_populates="submissions")
-    analysis = relationship("SubmissionAnalysis", back_populates="submission", uselist=False)
-
-
-class SubmissionAnalysis(Base):
-    __tablename__ = "submission_analyses"
-
-    id = Column(Integer, primary_key=True, index=True)
-    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False)
-    approach = Column(Text)
-    time_complexity = Column(String(64))
-    space_complexity = Column(String(64))
-    key_insight = Column(Text)
-    mistake_notes = Column(Text)
-    embedding = Column(Text)  # JSON-encoded vector for retrieval
-    analyzed_at = Column(DateTime(timezone=True), default=utcnow)
-
-    submission = relationship("Submission", back_populates="analysis")
-
-
-class KnowledgePage(Base):
-    __tablename__ = "knowledge_pages"
-
-    id = Column(Integer, primary_key=True, index=True)
-    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
-    explanation = Column(Text)
-    revision_notes = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-
-    problem = relationship("Problem", back_populates="knowledge_page")
-
-
-class LearningEvent(Base):
-    __tablename__ = "learning_events"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    event_type = Column(String(64), nullable=False)  # solved, revised, mistake
-    payload = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=utcnow)
-
-
-class RevisionSchedule(Base):
-    __tablename__ = "revision_schedules"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    knowledge_page_id = Column(Integer, ForeignKey("knowledge_pages.id"), nullable=False)
-    next_review_at = Column(DateTime(timezone=True), nullable=False)
-    interval_days = Column(Float, default=1.0)
-    ease_factor = Column(Float, default=2.5)
+    user = relationship("User", back_populates="subscriptions")
+    card = relationship("UserCard", foreign_keys=[card_id])
+    optimal_card = relationship("UserCard", foreign_keys=[optimal_card_id])
+    merchant = relationship("Merchant")

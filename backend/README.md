@@ -1,93 +1,57 @@
-# Loot Backend
+# Loot Wallet API
 
-FastAPI service powering the AI-native coding memory platform.
+FastAPI service for authentication, card catalog and wallet management, purchase imports, reward routing, and spending analytics.
 
-## Stack
+## Local setup
 
-- **API:** FastAPI + Uvicorn
-- **Database:** PostgreSQL (SQLAlchemy 2.0, Alembic migrations)
-- **Cache / Queue:** Redis
-- **AI:** OpenAI-compatible LLM + embeddings (configurable)
-
-## Setup
-
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-cp .env.example .env   # then fill in DATABASE_URL, REDIS_URL, OPENAI_API_KEY
+Copy-Item .env.example .env
 uvicorn app.main:app --reload
 ```
 
-The API docs are available at `http://localhost:8000/docs`.
+The development defaults use SQLite at `backend/loot.db`. On startup, the API creates tables and seeds the Indian card catalog. Browse the endpoints at http://localhost:8000/docs.
 
-## Layout
+For macOS or Linux, activate the environment with `source .venv/bin/activate` and copy the environment file with `cp .env.example .env`.
 
-```
-app/
-├── main.py              # FastAPI app + router wiring
-├── config.py            # Pydantic settings (env-driven)
-├── db.py                # Engine, session, declarative base
-├── models.py            # ORM models (User, Problem, Submission, ...)
-├── schemas.py           # Pydantic request/response models
-├── routers/             # users, submissions, knowledge, analytics, connections
-├── ai/analyzer.py       # LLM explanation + embedding pipeline
-├── platforms/           # platform clients (codeforces, leetcode) + registry
-└── services/sync.py     # background submission sync worker
-```
+## Configuration
 
+| Variable | Purpose | Local default |
+|---|---|---|
+| `DATABASE_URL` | SQLAlchemy database URL | `sqlite:///./loot.db` |
+| `JWT_SECRET` | Secret used to sign access tokens | Development placeholder; replace for deployment |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime | `1440` |
+| `CORS_ORIGINS` | Comma-separated browser and Capacitor origins | Local Next.js origins and `capacitor://localhost` |
+| `OPENAI_API_KEY` | Optional merchant classification service | Empty; keyword classification remains available |
+| `OPENAI_MODEL` | OpenAI model used for classification | `gpt-4o-mini` |
+| `CREATE_TABLES_ON_STARTUP` | Create schema at API startup | `true` |
 
-## How analysis works
+To use PostgreSQL, set `DATABASE_URL` to a PostgreSQL SQLAlchemy URL and install the included `psycopg2-binary` dependency. Set `CREATE_TABLES_ON_STARTUP=false` when schema changes are managed with Alembic.
 
-When an accepted submission is created:
+## API areas
 
-1. `routers/submissions.py` triggers `ai.analyzer.analyze_submission`.
-2. The user's exact code + problem context is sent to the LLM.
-3. A structured `SubmissionAnalysis` (approach, complexity, insight, mistakes)
-   and an embedding vector are persisted.
-4. A `KnowledgePage` is created/updated for revision and retrieval.
+- `/auth`: register, login, current user.
+- `/catalog`: issuers, card products, reward categories.
+- `/cards`: add, list, update, and remove wallet cards.
+- `/transactions`: add, import from pasted SMS, list, and view transactions.
+- `/route`: compare the wallet's cards for a merchant and purchase amount.
+- `/analytics`: monthly report, spending categories, and card utilization.
 
-## Database migrations (Alembic)
+Every route except `/health`, `/auth/register`, `/auth/login`, and `/catalog` requires a bearer token. The client handles authentication and adds it to protected requests.
 
-For local dev, tables are auto-created on startup (`CREATE_TABLES_ON_STARTUP=true`).
-For team/production, disable auto-create and manage schema with Alembic:
+## Tests
 
-```bash
-alembic revision --autogenerate -m "describe change"
-alembic upgrade head
-```
+Install the development dependencies and run the API integration tests from the `backend` directory:
 
-The initial migration (`alembic/versions/0001_initial.py`) creates every table in
-`app/models.py`.
-
-## Connecting a platform
-
-1. Create a user: `POST /users`.
-2. Register a connection: `POST /connections`
-   (`{ "user_id": 1, "platform": "codeforces", "external_username": "tourist" }`).
-3. Trigger sync: `POST /connections/sync` (or run the worker below).
-
-Supported platforms: `codeforces` (public API, no auth) and `leetcode`
-(requires `LEETCODE_SESSION` cookie for private history). Each platform normalizes
-its submissions into `NormalizedSubmission`, which the worker upserts into
-`Problem`/`Submission`, links `Topic`s, and analyzes accepted solutions.
-
-## Running the sync worker
-
-```bash
-python -m app.services.sync
+```powershell
+pip install -r requirements-dev.txt
+python -m pytest
 ```
 
-## Environment variables
+The tests use an isolated in-memory SQLite database and exercise authentication, catalog and wallet flows, reward routing, purchase imports, and analytics.
 
-| Variable                      | Default                                  |
-|-------------------------------|------------------------------------------|
-| `DATABASE_URL`                | `postgresql+psycopg2://.../loot`         |
-| `REDIS_URL`                   | `redis://localhost:6379/0`               |
-| `OPENAI_API_KEY`              | `""` (heuristic fallback if empty)       |
-| `OPENAI_MODEL`                | `gpt-4o-mini`                            |
-| `EMBEDDING_MODEL`             | `text-embedding-3-small`                 |
-| `SYNC_POLL_INTERVAL_SECONDS`  | `30`                                     |
-| `SYNC_BATCH_SIZE`             | `50`                                     |
-| `LEETCODE_SESSION`            | `""`                                     |
-| `CREATE_TABLES_ON_STARTUP`    | `true`                                   |
+## Data and deployment
+
+The local SQLite database and `.env` file are development conveniences. Configure a managed database, strong rotated secrets, HTTPS CORS origins, migrations, backups, rate limits, and account data export/deletion before deployment. The SMS importer parses an alert but does not store the original message.

@@ -4,25 +4,30 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Loot"
+    app_name: str = "Loot Wallet"
     environment: str = "development"
 
-    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/loot"
-    redis_url: str = "redis://localhost:6379/0"
+    # SQLite keeps a fresh local checkout runnable without a separate database.
+    # Set DATABASE_URL to PostgreSQL for shared or production environments.
+    database_url: str = "sqlite:///./loot.db"
+    # Authentication
+    jwt_secret: str = "change-me-in-production-use-a-real-secret"
+    access_token_expire_minutes: int = 1440  # 24 hours
 
+    # CORS — comma-separated origins allowed to call the API.
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,capacitor://localhost"
+
+    # AI / LLM
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
-    embedding_model: str = "text-embedding-3-small"
-
-    sync_poll_interval_seconds: int = 30
-    sync_batch_size: int = 50
-
-    # LeetCode submission history requires an authenticated session cookie.
-    leetcode_session: str = ""
 
     # When True, FastAPI auto-creates tables on startup (local dev convenience).
     # For team/production use, set False and manage schema via `alembic upgrade`.
     create_tables_on_startup: bool = True
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

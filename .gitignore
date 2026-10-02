@@ -9,6 +9,9 @@ venv/
 
 # Env files
 .env
+*.db
+*.db-shm
+*.db-wal
 
 # Distribution / packaging
 build/
@@ -18,6 +21,7 @@ dist/
 # Node
 node_modules/
 .next/
+out/
 
 # Editor / OS
 .DS_Store
