@@ -35,7 +35,13 @@ def get_recommendation(
     category = classify_merchant(body.merchant_name)
 
     # 2. Rank all user's cards
-    rankings = rank_cards(current_user.id, category, body.amount, db)
+    rankings = rank_cards(
+        current_user.id,
+        category,
+        body.amount,
+        db,
+        apple_pay_india=body.apple_pay_india,
+    )
 
     if not rankings:
         return RoutingResponse(
@@ -46,7 +52,11 @@ def get_recommendation(
                 ),
                 reward_value=Decimal("0"),
                 earn_rate=Decimal("0"),
-                reasoning="No cards in your wallet yet. Add a card to get started!",
+                reasoning=(
+                    "No eligible Axis Bank Visa or Mastercard is saved yet."
+                    if body.apple_pay_india
+                    else "No cards in your wallet yet. Add a card to get started!"
+                ),
             ),
             category_detected=category,
         )

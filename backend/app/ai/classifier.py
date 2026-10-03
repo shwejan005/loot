@@ -21,7 +21,7 @@ KEYWORD_MAP: dict[str, list[str]] = {
     "dining": [
         "swiggy", "zomato", "dominos", "mcdonalds", "starbucks", "pizza hut",
         "kfc", "burger king", "subway", "dunkin", "cafe", "restaurant",
-        "food", "eat", "dine", "biryani", "chai", "ubereats", "uber eats",
+        "food", "eat", "dine", "biryani", "chai", "chaayos", "le15", "ubereats", "uber eats",
     ],
     "grocery": [
         "bigbasket", "blinkit", "zepto", "jiomart", "dmart", "reliance fresh",
@@ -39,7 +39,7 @@ KEYWORD_MAP: dict[str, list[str]] = {
     ],
     "online": [
         "amazon", "flipkart", "myntra", "ajio", "meesho", "snapdeal",
-        "nykaa", "tatacliq", "croma", "reliance digital",
+        "nykaa", "tatacliq", "apple store", "croma", "reliance digital", "comet", "interflora",
     ],
     "entertainment": [
         "netflix", "hotstar", "prime video", "spotify", "youtube", "sony liv",
@@ -67,6 +67,7 @@ KEYWORD_MAP: dict[str, list[str]] = {
     "international": [],  # detected by currency or merchant origin
     "department_store": [
         "shoppers stop", "lifestyle", "westside", "pantaloons", "central",
+        "reliance brands", "reliance retail", "reliance trends",
     ],
 }
 

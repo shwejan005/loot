@@ -53,7 +53,6 @@ export type UserCard = {
   user_id: number;
   card_product_id: number;
   nickname: string | null;
-  last_four: string | null;
   is_default: boolean;
   is_active: boolean;
   added_at: string;
@@ -171,7 +170,7 @@ export const catalog = {
 
 export const cards = {
   list: (token: string) => request<UserCard[]>("/cards/", { token }),
-  add: (token: string, data: { card_product_id: number; nickname?: string; last_four?: string; is_default?: boolean }) =>
+  add: (token: string, data: { card_product_id: number; nickname?: string; is_default?: boolean }) =>
     request<UserCardRecord>("/cards/", { method: "POST", body: data, token }),
   update: (token: string, cardId: number, data: { nickname?: string; is_default?: boolean }) => {
     const query = new URLSearchParams();
@@ -193,7 +192,7 @@ export const transactions = {
 };
 
 export const routing = {
-  recommend: (token: string, data: { merchant_name: string; amount: number }) =>
+  recommend: (token: string, data: { merchant_name: string; amount: number; apple_pay_india?: boolean }) =>
     request<RoutingRecommendation>("/route/", { method: "POST", body: data, token }),
 };
 

@@ -112,7 +112,6 @@ class RewardRuleOut(BaseModel):
 class UserCardCreate(BaseModel):
     card_product_id: int
     nickname: Optional[str] = None
-    last_four: Optional[str] = Field(default=None, pattern=r"^\d{4}$")
     is_default: bool = False
 
 
@@ -123,7 +122,6 @@ class UserCardOut(BaseModel):
     user_id: int
     card_product_id: int
     nickname: Optional[str] = None
-    last_four: Optional[str] = None
     is_default: bool = False
     is_active: bool = True
     added_at: datetime
@@ -198,6 +196,7 @@ class RoutingRequest(BaseModel):
     merchant_name: str = Field(min_length=1, max_length=512)
     amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
     currency: str = "INR"
+    apple_pay_india: bool = False
 
 
 class CardRanking(BaseModel):

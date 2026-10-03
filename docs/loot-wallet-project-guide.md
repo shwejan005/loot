@@ -2,7 +2,7 @@
 
 Loot Wallet is a smart-wallet concept: help someone choose the most rewarding card they already own for a purchase. This guide describes the product as it exists in this repository, how its parts work, how to run it, and where the current prototype stops.
 
-> **Product boundary:** Loot currently gives a card recommendation in the app and tracks purchases entered by the user. It does not take over Apple Wallet, read the NFC reader, choose a payment card during a real tap, connect to issuer systems, or move money. “Smart routing” in this code means ranking the cards in a user’s Loot account for a merchant and amount.
+> **Product boundary:** Loot's Chrome extension identifies the active shopping site and ranks eligible saved cards before checkout. It does not take over Apple Wallet, read the NFC reader, choose a payment card in Apple Pay, connect to issuer systems, or move money. “Smart routing” means ranking the cards in a user’s Loot account for a merchant and amount.
 
 ## Contents
 
@@ -28,6 +28,7 @@ Loot Wallet is a smart-wallet concept: help someone choose the most rewarding ca
 |---|---|
 | Product name | Loot Wallet |
 | Web client | Next.js App Router, React, TypeScript |
+| Browser companion | Chrome Manifest V3 popup extension |
 | API | FastAPI, Python |
 | Persistence | SQLAlchemy; SQLite by default, PostgreSQL can be configured |
 | Authentication | bcrypt password hashes and signed JWT bearer tokens |
@@ -41,8 +42,10 @@ The backend and frontend are separate processes. The browser calls the API direc
 
 ```mermaid
 flowchart LR
-  Person[Person using Loot] --> Web[Next.js client]
+  Person[Person using Loot] --> Web[Next.js wallet]
+  Person --> Extension[Chrome extension popup]
   Web -->|JSON + bearer JWT| API[FastAPI]
+  Extension -->|active tab merchant + amount + bearer JWT| API
   API --> ORM[SQLAlchemy]
   ORM --> DB[(SQLite locally / PostgreSQL when configured)]
   API --> Rules[Keyword classifier + reward engine]
@@ -50,7 +53,7 @@ flowchart LR
   Web -. packaged web bundle .-> IOS[Capacitor iOS shell]
 ```
 
-The dotted OpenAI path is optional. Without an API key, classification stays local. The iOS shell packages the web client; it does not itself provide payment-network or NFC routing.
+The dotted OpenAI path is optional. Without an API key, classification stays local. The extension reads the active tab's URL and title to derive a merchant label; it does not scrape checkout fields. The iOS shell packages the web client; it does not itself provide payment-network or NFC routing.
 
 ## Run the app
 
@@ -103,12 +106,12 @@ The value is compiled into the client bundle, so restart the dev server or rebui
 ## The product flow
 
 1. **Create an account or sign in.** The API returns a signed access token and the user profile. The client stores the token in browser local storage.
-2. **Add existing cards.** Browse the seeded catalog and attach products to the account. Loot stores the catalog product reference, optional nickname, optional last four digits, and default/active flags. It does not request a full card number.
-3. **Ask what to use.** Enter a merchant name and purchase amount in the “Find the best card” sheet. The API classifies the merchant, estimates each active card’s reward, and returns the highest estimate plus up to three alternatives.
+2. **Add existing cards.** Browse the catalog and save card products by name. The wallet asks for no card number, expiry date, or security code. For Apple Pay recommendations in India, the wallet only offers Axis Bank Visa and Mastercard products in the catalog.
+3. **Ask what to use.** Open a shopping site and click the Loot Chrome extension. It reads the current tab's hostname and title, identifies the merchant, then asks the API to rank eligible cards. It starts with a ₹1,000 example amount; the user can change that amount in the popup.
 4. **Record purchases.** A user can enter a purchase manually, select the card used, or paste a supported bank SMS alert. Loot estimates rewards earned and compares the saved card with the best active card.
 5. **Review activity and insights.** Saved transactions feed the dashboard, category totals, monthly report, and card utilization views.
 
-The “default” card is a user preference; the recommendation engine still evaluates every active card. The recommendation is not a payment instruction sent to a terminal or card network.
+The “default” card is a user preference. Apple Pay India recommendations include only active Axis Bank Visa or Mastercard credit cards. Loot shows a suggestion before checkout; the user still chooses and confirms a card in Apple Pay.
 
 ## Application architecture
 
@@ -137,13 +140,13 @@ Storage keys currently used by the web client are `loot-access-token` and `loot-
 | View | What it shows or does |
 |---|---|
 | Sign in / register | Create an account with username, email, and password, or authenticate using username or email and password. |
-| Home | Greeting, reward totals, spend/missed-reward metrics, recent purchases, category summary, and a shortcut to compare cards. |
+| Home | Greeting, reward totals, spend/missed-reward metrics, recent purchases, category summary, and an Apple Pay setup shortcut. |
 | Activity | Account purchase history and purchase-entry actions. The API supports paginated lists and category/card filters. |
-| Wallet | Active cards, card catalog search, adding a card with optional last four digits, setting a default, renaming, and removing. |
+| Wallet | Active cards, catalog search for eligible Axis Bank Visa/Mastercard products, adding by card name, setting a default, renaming, and removing. |
 | Insights | Spending by category, current-month totals, missed-reward estimates, and card utilization based on saved purchases. |
 | Profile | Account details, light/dark theme selection, and sign out. |
 | Add purchase sheet | Manual merchant, amount, optional card/category details and a separate pasted-SMS import path. |
-| Find the best card sheet | Merchant and amount form; shows the detected category, best match, estimated value, reasoning, and available alternatives. |
+| Chrome extension | Reads the active site's URL and title, suggests the best eligible card, shows other saved options, and lets the user adjust the sample amount. |
 
 The layout is mobile-first and uses a bottom navigation bar on the main wallet views. The interface can be used in a desktop browser too. A marketing landing page, beta signup flow, and waitlist are not the current app experience.
 
@@ -159,15 +162,15 @@ The layout is mobile-first and uses a bottom navigation bar on the main wallet v
 
 ### Card catalog and user wallet
 
-The catalog separates shared master data (issuer, product, reward rules) from a user’s `UserCard` record. Catalog endpoints are public. Adding a card verifies that the catalog product exists. Re-adding an inactive matching card restores its record, preserving old transaction references. Removing a card is a soft delete (`is_active=false`); historical transaction references remain. Setting a card as default clears the prior default for that account.
+The catalog separates shared master data (issuer, product, reward rules) from a user’s `UserCard` record. Catalog endpoints are public. Adding a card verifies that the catalog product exists. Re-adding an inactive matching card restores its record, preserving old transaction references. Removing a card is a soft delete (`is_active=false`); historical transaction references remain. Setting a card as default clears the prior default for that account. The current wallet UI adds a card by catalog name only.
 
-The unique wallet constraint is user + product + last four digits. Last four digits are optional and are used only for SMS matching. Full PAN, CVV, expiry, and issuer credentials are not collected by this flow.
+The database retains an optional legacy last-four field for older records and SMS matching. The current wallet API no longer accepts or returns it, and the current UI saves a catalog card by product name only. Full PAN, CVV, expiry, and issuer credentials are not collected by this flow.
 
 ### Purchases
 
 Manual purchase creation validates that the selected card belongs to the signed-in user. It classifies the merchant only when a category was not supplied, records/looks up a normalized merchant, calculates estimated reward on the selected card when present, ranks the wallet, and saves the resulting recommendation and estimated missed value on the transaction.
 
-SMS import parses the submitted text in memory, rejects unparseable alerts, credits/refunds, and nonpositive amounts, then attempts to match an active user card by last four digits. It creates a normal transaction with `source="sms"`; the raw SMS body is not a database field and is not retained after parsing. If no card matches, the transaction is still imported without `card_id`.
+SMS import parses the submitted text in memory, rejects unparseable alerts, credits/refunds, and nonpositive amounts, then may match an active legacy user card by last four digits. It creates a normal transaction with `source="sms"`; the raw SMS body is not a database field and is not retained after parsing. If no card matches, the transaction is still imported without `card_id`.
 
 ### Merchant categories
 
@@ -204,9 +207,10 @@ When a rule has a minimum spend and the purchase is below it, the engine falls b
 - `conditions` on reward rules are stored but not evaluated. Merchant exclusions, MCC details, offer enrollment, payment-channel restrictions, and issuer-specific eligibility are not modeled by the ranker.
 - Annual fee, lounge access, insurance, sign-up bonus, user spend thresholds, and points expiry do not affect a recommendation.
 - The request currency is accepted, but the ranker assumes the configured reward values and amounts are comparable; it does not convert foreign currencies.
+- `apple_pay_india=true` restricts ranking to Axis Bank Visa and Mastercard products. This mirrors Apple's current India bank list; issuer/card eligibility can change and should be rechecked with Apple and the issuer.
 - A supplied category is accepted as given for a saved transaction. Category quality affects both its estimate and analytics grouping.
 - If a transaction has no selected card, its recorded earned value starts at zero; if an optimal card is found, the difference may be counted as missed. This measures opportunity in the ledger, not a confirmed loss.
-- No active cards produces a placeholder recommendation object with ID `0`; the web sheet translates that into an “add a card” empty state.
+- No eligible cards produces a placeholder recommendation object with ID `0`; the Chrome popup translates that into an “add an eligible card” empty state.
 
 All calculations are estimates based on the current local catalog. Issuer terms can change, and the seed catalog is starter data rather than a live issuer feed.
 
@@ -221,7 +225,7 @@ All monetary SQLAlchemy columns use decimal/numeric types to avoid binary floati
 | `RewardRule` | Product/category earning rule, earn type/rate, optional caps and minimum spend, validity dates, and conditions JSON. |
 | `Merchant` | Normalized merchant name, display name, category/subcategory, optional MCC/logo, and metadata. Transactions may link to it. |
 | `User` | Unique email/username, password hash, display name, country, onboarding flag, and creation timestamp. Owns cards and transactions. |
-| `UserCard` | User-to-product wallet link with nickname, optional last four, default/active state, and add timestamp. |
+| `UserCard` | User-to-product wallet link with nickname, optional legacy last four, default/active state, and add timestamp. |
 | `Transaction` | User purchase facts plus used card, merchant, category, source, timestamp, earned estimate, best-card estimate, and missed-reward estimate. |
 | `Subscription` | A subscription-shaped model exists in the ORM, but there is currently no subscription router, workflow, or screen. It should not be read as a shipped feature. |
 
@@ -249,7 +253,7 @@ Base URL in local development: `http://localhost:8000`. JSON request examples be
 | Method and path | Purpose / key inputs |
 |---|---|
 | `GET /cards/` | List the signed-in user’s active cards with product/issuer detail. |
-| `POST /cards/` | JSON `{ "card_product_id": 12, "nickname": "Travel card", "last_four": "1234", "is_default": true }`. `nickname`, `last_four`, and `is_default` are optional; last four must be exactly four digits. Returns 201. |
+| `POST /cards/` | JSON `{ "card_product_id": 12, "nickname": "Axis card", "is_default": true }`. `nickname` and `is_default` are optional. Returns 201. |
 | `PATCH /cards/{card_id}?nickname=Travel%20card&is_default=true` | Update nickname and/or default state. Parameters are query parameters, not a JSON body. |
 | `DELETE /cards/{card_id}` | Soft-deactivate the user card; returns 204. |
 
@@ -258,7 +262,7 @@ Base URL in local development: `http://localhost:8000`. JSON request examples be
 | Method and path | Purpose / key inputs |
 |---|---|
 | `POST /transactions/` | Create a purchase. Example JSON: `{ "merchant_raw": "Swiggy", "amount": 850, "card_id": 3, "currency": "INR" }`. `amount` must be positive; card must belong to the current user. `category`, `source`, and `transacted_at` can also be supplied. Returns 201. |
-| `POST /transactions/sms` | JSON `{ "sms_body": "...bank alert text..." }`. Parses amount, merchant, optional last four, and optional date. Refund/credit alerts are rejected. Returns 201. |
+| `POST /transactions/sms` | JSON `{ "sms_body": "...bank alert text..." }`. Parses amount, merchant, optional legacy last four, and optional date. Refund/credit alerts are rejected. Returns 201. |
 | `GET /transactions/?page=1&page_size=20&category=dining&card_id=3` | Paginated current-user purchases; `page_size` is 1–100; filters are optional. |
 | `GET /transactions/{txn_id}` | One owned transaction with used-card, optimal-card, and merchant details. |
 
@@ -266,7 +270,7 @@ Base URL in local development: `http://localhost:8000`. JSON request examples be
 
 | Method and path | Purpose / key inputs |
 |---|---|
-| `POST /route/` | JSON `{ "merchant_name": "Swiggy", "amount": 850, "currency": "INR" }`; return detected category, best card, estimated reward, reasoning, alternatives, and `savings_vs_worst`. Requires a token. |
+| `POST /route/` | JSON `{ "merchant_name": "Zomato", "amount": 850, "currency": "INR", "apple_pay_india": true }`; when `apple_pay_india` is true, ranks only Axis Bank Visa/Mastercard cards. Requires a token. |
 | `GET /analytics/summary` | All-time dashboard totals and active-card count. |
 | `GET /analytics/spending-by-category?months=1` | Category aggregates for 1–24 rolling 30-day months. |
 | `GET /analytics/card-utilization?months=1` | Card usage/optimality for 1–24 rolling 30-day months. |
@@ -280,9 +284,10 @@ Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {
-  "merchant_name": "Swiggy",
+  "merchant_name": "Zomato",
   "amount": 850,
-  "currency": "INR"
+  "currency": "INR",
+  "apple_pay_india": true
 }
 ```
 
@@ -312,7 +317,7 @@ SQLite is appropriate for a local single-user development instance. PostgreSQL s
 ### What the current app stores
 
 - Account email, username, display name, and a bcrypt password hash.
-- Card product choice, nickname, optional last four, active/default state.
+- Card product choice, nickname, and active/default state. Older databases may contain the optional legacy last-four value; current card endpoints do not accept or return it.
 - User-entered or parsed purchase amount, currency, merchant text, category, source, and timestamp.
 - Calculated reward estimates and linked catalog/card references.
 - A normalized merchant record created when a purchase is enriched.
@@ -324,6 +329,14 @@ The app does not ask for a full card number, CVV, bank password, or issuer login
 The API hashes passwords, uses signed expiring JWTs, scopes personal-card/transaction queries to the authenticated user, and configures CORS. These are useful foundations, not a completed financial-data security review. Browser local storage is accessible to JavaScript running in the origin; production deployments should assess XSS exposure and token storage choices. The default JWT secret must never be used outside development.
 
 Before handling real users or financial data, configure HTTPS, strong secret management/rotation, explicit production CORS, schema migrations, database backups, rate limits, monitoring, account export/deletion, retention rules, and incident response. Review the existing [production scale notes](production-scale.md) as a companion checklist.
+
+## Chrome extension
+
+The unpacked extension lives in `frontend/extension`. Its popup calls the same `/route/` API as other clients, sending a merchant label derived from the active tab, an amount, and `apple_pay_india=true`. See [the extension README](../frontend/extension/README.md) for local loading and deployment steps. The local extension points to `http://localhost:8000`; update its API origin and manifest host permissions before distribution.
+
+Apple announced Apple Pay in India on 30 September 2026 and currently lists eligible Axis Bank Visa and Mastercard credit cards. Mac support was listed as coming soon at launch. Apple's third-party browser flow uses a QR code to finish checkout on iPhone. See [Apple's launch announcement](https://www.apple.com/in/newsroom/2026/09/apple-pay-launches-in-india/) and [current India bank list](https://www.apple.com/in/apple-pay/banks/in/en-in.html).
+
+The iPhone side-button double-click invokes Apple Pay's payment flow; it is not an app-launch hook for Loot. Loot's suggestion happens before the user enters Apple Pay. A future iOS quick action can use a supported App Shortcut surface such as the Action button.
 
 ## Build and iOS packaging
 
@@ -342,11 +355,11 @@ Use `npm.cmd` instead of `npm` in PowerShell environments where script execution
 
 ## Known limits and next product steps
 
-The current implementation proves account-backed card storage, a manual recommendation flow, purchase logging, and basic reward analytics. The smart-wallet vision can guide future work, but each step toward a real payment experience needs product and platform design beyond this web prototype.
+The current implementation provides account-backed card-name storage, a Chrome site recommendation flow, purchase logging, and basic reward analytics. The extension gives a pre-checkout suggestion; Apple Pay still handles card selection, authentication, and payment.
 
 Current limits include:
 
-- No Wallet extension, NFC payment integration, payment token provisioning, issuer/network authorization, or live point-of-sale routing.
+- No Apple Wallet extension, NFC payment integration, payment token provisioning, issuer/network authorization, or live point-of-sale routing.
 - No automatic bank sync, card statement import, device SMS permission/access, or email ingestion. SMS is pasted by the user.
 - Seed catalog rules are not live issuer terms; estimates may be stale or incomplete.
 - Reward conditions, accumulated monthly/quarterly caps, eligibility, exclusions, and foreign exchange are not fully modeled.
@@ -364,7 +377,7 @@ Practical next product milestones are to verify and version the supported-card c
 | Browser reports a CORS error | Add the exact client origin (scheme, host, and port) to `CORS_ORIGINS`, then restart the API. |
 | Sign-in immediately returns to the auth view | The saved JWT may have expired or use a different `JWT_SECRET`; sign in again and check API logs. |
 | Catalog is empty | Check API startup logs for seeding errors and verify `CREATE_TABLES_ON_STARTUP`/database URL. The seeder is run at API startup. |
-| Recommendation says add a card | Add an active card from the catalog; routing evaluates only active cards owned by the signed-in user. |
+| Extension says add an eligible card | Save an eligible Axis Bank Visa or Mastercard product by name in the wallet. The Apple Pay India route ignores cards outside that issuer/network set. |
 | Rewards look unexpected | Check merchant category, active reward rules, minimum spend, point value, and the calculation limits above. Catalog values are estimates. |
 | SMS import fails | The parser only recognizes a limited set of amount, transaction, merchant, and date patterns; credits/refunds and unsupported formats are rejected. |
 | A phone cannot reach a local API | A phone’s `localhost` points to itself. Use a reachable HTTPS API URL and permit the Capacitor origin in CORS. |

@@ -1,0 +1,65 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #20161a;
+  background: #fffdfd;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 360px;
+  min-height: 470px;
+  margin: 0;
+  background: #fffdfd;
+}
+
+button, input { font: inherit; }
+
+.popup-shell { padding: 20px; }
+.brand-row { display: flex; align-items: center; gap: 8px; padding-bottom: 22px; }
+.brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; background: #721e3b; color: white; font-size: 18px; font-weight: 800; }
+.brand-name { font-size: 17px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.brand-context { margin-left: auto; color: #8a6874; font-size: 9px; font-weight: 750; letter-spacing: .12em; }
+.view[hidden] { display: none; }
+.eyebrow { margin: 0 0 7px; color: #8b5265; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+h1 { margin: 0; color: #20161a; font-size: 24px; line-height: 1.1; letter-spacing: -.04em; }
+.intro { margin: 11px 0 18px; color: #786e71; font-size: 13px; line-height: 1.45; }
+.site-chip { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #efe4e8; border-radius: 12px; background: #fbf5f7; color: #6d1f3b; font-size: 12px; font-weight: 700; }
+.form-stack { display: grid; gap: 8px; }
+label { color: #554b4e; font-size: 11px; font-weight: 700; }
+.form-stack input { height: 42px; padding: 0 11px; border: 1px solid #e8dfe2; border-radius: 10px; outline: 0; }
+input:focus { border-color: #a45a73; box-shadow: 0 0 0 3px #f6e9ee; }
+.primary-button { height: 43px; margin-top: 6px; border: 0; border-radius: 11px; background: #721e3b; color: white; font-size: 13px; font-weight: 750; cursor: pointer; }
+.primary-button:disabled { opacity: .6; cursor: wait; }
+.site-header { padding: 4px 0 17px; }
+.site-header h1 { font-size: 28px; }
+.muted { margin: 6px 0 0; color: #887b7e; font-size: 11px; overflow-wrap: anywhere; }
+.amount-row { display: grid; gap: 7px; }
+.amount-control { display: flex; height: 45px; align-items: center; border: 1px solid #eadfe3; border-radius: 12px; overflow: hidden; }
+.amount-control > span { padding-left: 13px; color: #806b72; font-size: 15px; }
+.amount-control input { width: 100%; height: 100%; padding: 0 9px; border: 0; outline: 0; color: #20161a; font-size: 16px; font-weight: 700; }
+.amount-control input:focus { box-shadow: none; }
+.amount-control button { width: 44px; height: 100%; border: 0; border-left: 1px solid #efe6e8; background: #fbf6f7; color: #721e3b; font-size: 24px; cursor: pointer; }
+.estimate-note { margin: 7px 0 13px; color: #887b7e; font-size: 10px; line-height: 1.4; }
+.result-card { min-height: 142px; padding: 15px; border: 1px solid #efe4e8; border-radius: 15px; background: linear-gradient(145deg, #fff, #fbf5f7); }
+.loading-row { display: flex; min-height: 110px; align-items: center; justify-content: center; gap: 9px; color: #786e71; font-size: 12px; }
+.spinner { width: 16px; height: 16px; border: 2px solid #ead6de; border-top-color: #721e3b; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.result-eyebrow { margin: 0 0 7px; color: #8b5265; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.best-card-name { display: block; color: #24161c; font-size: 20px; font-weight: 800; line-height: 1.12; }
+.result-reason { display: block; margin-top: 7px; color: #786e71; font-size: 11px; line-height: 1.4; }
+.reward-value { display: block; margin-top: 12px; color: #23734a; font-size: 14px; font-weight: 800; }
+.alternatives { margin-top: 13px; padding-top: 10px; border-top: 1px solid #eee2e6; }
+.alternatives-title { margin: 0 0 6px; color: #887b7e; font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.alternative-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; color: #50454a; font-size: 11px; }
+.alternative-row strong { white-space: nowrap; }
+.notice, .error { color: #9a3349; font-size: 11px; line-height: 1.4; }
+.notice { margin: 0 0 10px; padding: 9px 10px; border-radius: 9px; background: #fff0f2; }
+.error { margin: 2px 0 0; }
+.eligibility-note { display: grid; gap: 4px; margin-top: 14px; padding: 11px 12px; border-radius: 11px; background: #f7f4f2; }
+.eligibility-note strong { color: #423439; font-size: 10px; }
+.eligibility-note span { color: #786e71; font-size: 10px; line-height: 1.4; }
+.footnote { margin: 12px 0 0; color: #93888b; font-size: 10px; line-height: 1.4; }
+.text-button { margin: 10px 0 0; padding: 4px 0; border: 0; background: transparent; color: #721e3b; font-size: 10px; font-weight: 700; cursor: pointer; }

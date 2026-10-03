@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Loot for Apple Pay</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="brand-row">
+        <span class="brand-mark" aria-hidden="true">L</span>
+        <span class="brand-name">Loot</span>
+        <span class="brand-context">APPLE PAY INDIA</span>
+      </header>
+
+      <section id="login-view" class="view" hidden>
+        <p class="eyebrow">YOUR CARD COMPANION</p>
+        <h1>Find the right card<br />before you pay.</h1>
+        <p class="intro">Sign in to compare the eligible card names saved in your Loot wallet.</p>
+        <div id="login-site" class="site-chip" hidden></div>
+        <form id="login-form" class="form-stack">
+          <label for="username">Username or email</label>
+          <input id="username" name="username" autocomplete="username" required />
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+          <p id="login-error" class="error" role="alert" hidden></p>
+          <button id="login-button" class="primary-button" type="submit">Sign in to Loot</button>
+        </form>
+        <p class="footnote">Create your Loot account in the wallet app first.</p>
+      </section>
+
+      <section id="assistant-view" class="view" hidden>
+        <div class="site-header">
+          <p class="eyebrow">SHOPPING AT</p>
+          <h1 id="merchant-name">Detecting site…</h1>
+          <p id="merchant-domain" class="muted"></p>
+        </div>
+
+        <div id="site-error" class="notice" hidden></div>
+        <form id="recommend-form" class="amount-row">
+          <label for="amount">Purchase amount</label>
+          <div class="amount-control">
+            <span aria-hidden="true">₹</span>
+            <input id="amount" name="amount" type="number" inputmode="decimal" min="1" step="1" value="1000" required />
+            <button id="refresh-button" type="submit" aria-label="Update recommendation" title="Update recommendation">↻</button>
+          </div>
+        </form>
+        <p class="estimate-note">Starts with a ₹1,000 example. Change the amount for a closer reward estimate.</p>
+
+        <section id="result" class="result-card" aria-live="polite">
+          <div class="loading-row"><span class="spinner" aria-hidden="true"></span><span>Comparing your eligible cards…</span></div>
+        </section>
+
+        <div class="eligibility-note">
+          <strong>Apple Pay in India</strong>
+          <span>At launch, eligible Axis Bank Visa and Mastercard credit cards are supported.</span>
+        </div>
+        <p class="footnote">Loot suggests a card. Confirm and pay in Apple Pay.</p>
+        <button id="signout-button" class="text-button" type="button">Sign out</button>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

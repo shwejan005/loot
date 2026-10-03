@@ -99,6 +99,7 @@ def rank_cards(
     category: str,
     amount: Decimal,
     db: Session,
+    apple_pay_india: bool = False,
 ) -> list[dict]:
     """Rank all of a user's active cards by expected reward value.
 
@@ -118,6 +119,11 @@ def rank_cards(
     rankings = []
     for uc in user_cards:
         cp = uc.card_product
+        if apple_pay_india and (
+            cp.issuer.slug != "axis"
+            or cp.network.lower() not in {"visa", "mastercard"}
+        ):
+            continue
         rules = get_applicable_rules(cp.id, category, db)
 
         if rules:

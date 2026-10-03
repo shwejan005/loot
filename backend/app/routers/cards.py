@@ -43,13 +43,12 @@ def add_card(
         raise HTTPException(status_code=404, detail="Card product not found")
 
     # A soft-deleted card can be restored. Reusing its record also preserves
-    # the links from historical transactions and avoids the unique constraint.
+    # the links from historical transactions.
     existing = (
         db.query(UserCard)
         .filter_by(
             user_id=current_user.id,
             card_product_id=body.card_product_id,
-            last_four=body.last_four,
         )
         .first()
     )
@@ -74,7 +73,6 @@ def add_card(
         user_id=current_user.id,
         card_product_id=body.card_product_id,
         nickname=body.nickname or product.name,
-        last_four=body.last_four,
         is_default=body.is_default,
     )
     db.add(card)

@@ -1,6 +1,6 @@
 # Loot Wallet client
 
-Mobile-first Next.js client packaged for iOS with Capacitor. It connects to the FastAPI backend for authentication, card management, transactions, routing recommendations, and analytics.
+Mobile-first Next.js wallet packaged for iOS with Capacitor. It connects to the FastAPI backend for authentication, card-name management, transactions, and analytics. Card recommendations are made in the Chrome extension.
 
 ## Run locally
 
@@ -27,6 +27,12 @@ Building and signing require macOS with Xcode installed.
 2. Create the native project once with `npm run ios:add`.
 3. After web changes run `npm run ios:sync`.
 4. Open Xcode with `npm run ios:open` to test and sign.
+
+The current iOS wrapper cannot open Loot from the side-button double-click; Apple Pay uses that gesture for its payment flow in India. For the fast recommendation flow, use the Chrome extension on a shopping tab. An iOS quick action could use Shortcuts or the Action button on supported iPhones.
+
+## Chrome extension
+
+Load `frontend/extension` as an unpacked extension from `chrome://extensions`. The popup reads the active tab's URL and title, then asks the API for the best eligible card. See the [extension guide](extension/README.md). The extension starts at `http://localhost:8000`; set its API origin and manifest host permission to the deployed HTTPS API before distribution.
 
 ## Fonts
 

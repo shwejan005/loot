@@ -35,7 +35,6 @@ import {
   auth,
   cards as cardsApi,
   catalog,
-  routing,
   transactions as transactionsApi,
   type AuthResponse,
   type CardProduct,
@@ -43,7 +42,6 @@ import {
   type DashboardSummary,
   type Issuer,
   type MonthlyReport,
-  type RoutingRecommendation,
   type SpendingCategory,
   type Transaction,
   type User,
@@ -188,7 +186,6 @@ function HomeScreen({
   onBalanceToggle,
   onTabChange,
   onAddTransaction,
-  onRecommend,
 }: {
   user: User;
   transactions: TransactionRecord[];
@@ -198,7 +195,6 @@ function HomeScreen({
   onBalanceToggle: () => void;
   onTabChange: (tab: TabKey) => void;
   onAddTransaction: () => void;
-  onRecommend: () => void;
 }) {
   const [firstName] = (user.display_name || user.username).split(/[\s@]/);
   const now = new Date();
@@ -232,10 +228,10 @@ function HomeScreen({
       </div>
 
       <section className="content-section">
-        <SectionTitle label="A smarter next move" action="Find a card" onAction={onRecommend} />
-        <button type="button" className="recommendation-card recommendation-button" onClick={onRecommend}>
+        <SectionTitle label="Apple Pay in India" action="Add cards" onAction={() => onTabChange("wallet")} />
+        <button type="button" className="recommendation-card recommendation-button" onClick={() => onTabChange("wallet")}>
           <span className="recommendation-icon"><Sparkles size={19} strokeWidth={1.7} /></span>
-          <span className="recommendation-copy"><span className="eyebrow">LOOT SUGGESTS</span><span className="recommendation-headline">Check the best card for a purchase.</span><span>Compare rewards across your wallet.</span></span>
+          <span className="recommendation-copy"><span className="eyebrow">LOOT FOR APPLE PAY</span><span className="recommendation-headline">See the best card before you pay.</span><span>Loot for Chrome spots the store and compares your eligible cards.</span></span>
           <span className="round-arrow" aria-hidden="true"><ArrowRight size={17} /></span>
         </button>
       </section>
@@ -303,7 +299,7 @@ function PaymentCard({ card, index, onRemove, onDefault, onRename }: { card: Use
       <div className="payment-card-top"><span>{product?.issuer?.name ?? "CREDIT CARD"}</span><span className="card-contactless">)))</span></div>
       <div className="card-chip" aria-hidden="true"><i /><i /><i /><i /></div>
       <strong className="payment-card-name">{card.nickname || product?.name || "Card"}</strong>
-      <div className="payment-card-bottom"><span>{card.last_four ? `••••  ••••  ••••  ${card.last_four}` : "Number not stored"}</span><span>{product?.network?.toUpperCase() ?? ""}</span></div>
+      <div className="payment-card-bottom"><span>Saved by card name</span><span>{product?.network?.toUpperCase() ?? ""}</span></div>
       {editingNickname ? <form className="card-actions card-rename-form" onSubmit={saveNickname}>
         <input aria-label={`Nickname for ${product?.name ?? "card"}`} maxLength={64} required value={nickname} onChange={(event) => setNickname(event.target.value)} />
         <button type="submit" disabled={savingNickname}>{savingNickname ? "Saving…" : "Save"}</button>
@@ -320,11 +316,11 @@ function PaymentCard({ card, index, onRemove, onDefault, onRename }: { card: Use
 function WalletScreen({ cards, onAdd, onRemove, onDefault, onRename }: { cards: UserCard[]; onAdd: () => void; onRemove: (card: UserCard) => void; onDefault: (card: UserCard) => void; onRename: (card: UserCard, nickname: string) => Promise<boolean> }) {
   return (
     <div className="screen-content inner-screen">
-      <p className="eyebrow">YOUR PAYMENT TOOLKIT</p><h1>Your wallet<span className="greeting-period">.</span></h1><p className="screen-subtitle">{cards.length} {cards.length === 1 ? "card" : "cards"} · your full card number is never stored</p>
+      <p className="eyebrow">YOUR PAYMENT TOOLKIT</p><h1>Your wallet<span className="greeting-period">.</span></h1><p className="screen-subtitle">{cards.length} {cards.length === 1 ? "card" : "cards"} · add by card name only</p>
       <div className="wallet-cards">{cards.map((card, index) => <PaymentCard key={card.id} card={card} index={index} onRemove={onRemove} onDefault={onDefault} onRename={onRename} />)}</div>
-      {cards.length === 0 && <div className="empty-card-state"><CreditCard size={24} /><strong>Your wallet is ready for a card.</strong><span>Add a card to get purchase recommendations.</span></div>}
+      {cards.length === 0 && <div className="empty-card-state"><CreditCard size={24} /><strong>Your wallet is ready for a card.</strong><span>Add an eligible Axis Bank Visa or Mastercard by name.</span></div>}
       <button type="button" className="add-card-button" onClick={onAdd}><Plus size={17} /> Add a card</button>
-      <div className="wallet-security"><LockKeyhole size={16} /><span>Loot stores only the last four digits when you choose to add them.</span></div>
+      <div className="wallet-security"><LockKeyhole size={16} /><span>No card number, expiry date, or security code is needed. Loot compares eligible Axis Bank Visa and Mastercard credit cards found in its starter catalog.</span></div>
     </div>
   );
 }
@@ -412,34 +408,29 @@ function AddTransactionSheet({ cards, merchant, amount, selectedCardId, smsBody,
   return <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="add-sheet" role="dialog" aria-modal="true" aria-labelledby="add-sheet-title"><div className="sheet-handle" /><div className="sheet-heading"><div><p className="eyebrow">KEEP YOUR PICTURE COMPLETE</p><h2 id="add-sheet-title">Add a purchase</h2></div><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={20} /></button></div>
     <div className="entry-mode"><button type="button" className={!smsMode ? "entry-mode-active" : ""} onClick={() => setSmsMode(false)}>Enter details</button><button type="button" className={smsMode ? "entry-mode-active" : ""} onClick={() => setSmsMode(true)}>Paste bank SMS</button></div>
     {!smsMode ? <form className="add-form" onSubmit={onSubmit}><label>Merchant<input autoFocus value={merchant} onChange={(event) => onMerchant(event.target.value)} placeholder="e.g. Blue Tokai" maxLength={512} required /></label><label>Amount<input value={amount} onChange={(event) => onAmount(event.target.value)} type="number" inputMode="decimal" min="0.01" step="0.01" placeholder="₹ 0" required /></label>
-      <label>Card used <select value={selectedCardId} onChange={(event) => onCard(event.target.value)}><option value="">Not sure / cash / not tracked</option>{cards.map((card) => <option key={card.id} value={card.id}>{card.nickname || card.card_product?.name || "Card"}{card.last_four ? ` ···· ${card.last_four}` : ""}</option>)}</select></label>
+      <label>Card used <select value={selectedCardId} onChange={(event) => onCard(event.target.value)}><option value="">Not sure / cash / not tracked</option>{cards.map((card) => <option key={card.id} value={card.id}>{card.nickname || card.card_product?.name || "Card"}</option>)}</select></label>
       {error && <p className="form-error" role="alert">{error}</p>}<button type="submit" className="primary-submit" disabled={busy}>{busy ? "Saving…" : "Add transaction"} <ArrowRight size={17} /></button>
     </form> : <div className="add-form"><label>Purchase alert<textarea value={smsBody} onChange={(event) => onSmsBody(event.target.value)} placeholder="Paste the bank's purchase alert" rows={4} maxLength={4000} /></label><p className="sms-note">Paste a purchase alert only. The original message is not saved.</p>{error && <p className="form-error" role="alert">{error}</p>}<button type="button" className="primary-submit" disabled={busy || !smsBody.trim()} onClick={onSmsSubmit}>{busy ? "Reading alert…" : "Import purchase"}<ArrowRight size={17} /></button></div>}
     <p className="form-privacy"><LockKeyhole size={13} /> Your data stays yours.</p>
   </section></div>;
 }
 
-function CardCatalogSheet({ products, issuers, search, lastFour, busy, error, loading, onSearch, onLastFour, onClose, onAdd }: {
-  products: CardProduct[]; issuers: Issuer[]; search: string; lastFour: string; busy: boolean; error: string; loading: boolean;
-  onSearch: (value: string) => void; onLastFour: (value: string) => void; onClose: () => void; onAdd: (product: CardProduct) => void;
+function CardCatalogSheet({ products, issuers, search, busy, error, loading, onSearch, onClose, onAdd }: {
+  products: CardProduct[]; issuers: Issuer[]; search: string; busy: boolean; error: string; loading: boolean;
+  onSearch: (value: string) => void; onClose: () => void; onAdd: (product: CardProduct) => void;
 }) {
+  const issuerById = new Map<number, Issuer>(issuers.map((issuer) => [issuer.id, issuer] as const));
   const issuerNames = new Map<number, string>(issuers.map((issuer) => [issuer.id, issuer.name] as const));
-  const filtered = products.filter((product) => `${product.name} ${issuerNames.get(product.issuer_id) ?? ""} ${product.network}`.toLowerCase().includes(search.toLowerCase()));
-  return <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="add-sheet catalog-sheet" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><div className="sheet-handle" /><div className="sheet-heading"><div><p className="eyebrow">CHOOSE YOUR CARD</p><h2 id="catalog-title">Card catalog</h2></div><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={20} /></button></div>
-    <label className="catalog-search"><Search size={17} /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search bank or card" /></label><label className="last-four-label">Last four digits (optional)<input inputMode="numeric" maxLength={4} pattern="[0-9]{4}" value={lastFour} onChange={(event) => onLastFour(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="1234" /></label>
-    <div className="catalog-results">{loading ? <p className="empty-state">Loading supported cards…</p> : filtered.map((product) => <div className="catalog-product" key={product.id}><span className="catalog-product-mark"><CreditCard size={19} /></span><span><strong>{product.name}</strong><small>{issuerNames.get(product.issuer_id) ?? "Card issuer"} · {product.network.toUpperCase()} · {formatINR(Number(product.annual_fee))}/yr</small></span><button type="button" className="catalog-add" disabled={busy || Boolean(lastFour && lastFour.length !== 4)} onClick={() => onAdd(product)}>Add</button></div>)}{!loading && filtered.length === 0 && <p className="empty-state">No cards match your search.</p>}</div>{error && <p className="form-error" role="alert">{error}</p>}
+  const filtered = products.filter((product) => {
+    const issuer = issuerById.get(product.issuer_id);
+    const supported = issuer?.slug === "axis" && ["visa", "mastercard"].includes(product.network.toLowerCase());
+    return supported && `${product.name} ${issuer?.name ?? ""} ${product.network}`.toLowerCase().includes(search.toLowerCase());
+  });
+  return <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="add-sheet catalog-sheet" role="dialog" aria-modal="true" aria-labelledby="catalog-title"><div className="sheet-handle" /><div className="sheet-heading"><div><p className="eyebrow">CHOOSE YOUR CARD</p><h2 id="catalog-title">Apple Pay cards</h2></div><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={20} /></button></div>
+    <p className="sms-note">At launch, Apple Pay in India supports eligible Axis Bank Visa and Mastercard credit cards. Save by card name only; the starter catalog may not include every eligible card yet.</p>
+    <label className="catalog-search"><Search size={17} /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search Axis card name" /></label>
+    <div className="catalog-results">{loading ? <p className="empty-state">Loading supported cards…</p> : filtered.map((product) => <div className="catalog-product" key={product.id}><span className="catalog-product-mark"><CreditCard size={19} /></span><span><strong>{product.name}</strong><small>{issuerNames.get(product.issuer_id) ?? "Card issuer"} · {product.network.toUpperCase()} · {formatINR(Number(product.annual_fee))}/yr</small></span><button type="button" className="catalog-add" disabled={busy} onClick={() => onAdd(product)}>Add</button></div>)}{!loading && filtered.length === 0 && <p className="empty-state">No matching eligible Axis Bank card is in the starter catalog yet.</p>}</div>{error && <p className="form-error" role="alert">{error}</p>}
     </section></div>;
-}
-
-function RoutingSheet({ merchant, amount, result, busy, error, onMerchant, onAmount, onClose, onSubmit }: {
-  merchant: string; amount: string; result: RoutingRecommendation | null; busy: boolean; error: string;
-  onMerchant: (value: string) => void; onAmount: (value: string) => void; onClose: () => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  return <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="add-sheet" role="dialog" aria-modal="true" aria-labelledby="route-title"><div className="sheet-handle" /><div className="sheet-heading"><div><p className="eyebrow">MAKE YOUR NEXT MOVE</p><h2 id="route-title">Find the best card</h2></div><button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={20} /></button></div>
-    <form className="add-form" onSubmit={onSubmit}><label>Where are you shopping?<input autoFocus value={merchant} onChange={(event) => onMerchant(event.target.value)} placeholder="e.g. dinner at Blue Tokai" required /></label><label>Purchase amount<input value={amount} onChange={(event) => onAmount(event.target.value)} type="number" inputMode="decimal" min="0.01" step="0.01" placeholder="₹ 0" required /></label>{error && <p className="form-error" role="alert">{error}</p>}<button type="submit" className="primary-submit" disabled={busy}>{busy ? "Comparing your cards…" : "Compare cards"}<ArrowRight size={17} /></button></form>
-    {result && <div className="route-result"><p className="eyebrow">{categoryLabel(result.category_detected)} · BEST MATCH</p>{result.recommended.card.id ? <><strong>{result.recommended.card.nickname || result.recommended.card.card_product?.name}</strong><span>{result.recommended.reasoning}</span><b>Estimated reward · {formatINR(Number(result.recommended.reward_value))}</b>{result.alternatives.length > 0 && <div className="route-alternatives"><span>Other options</span>{result.alternatives.map((item) => <p key={item.card.id}>{item.card.nickname || item.card.card_product?.name} <b>{formatINR(Number(item.reward_value))}</b></p>)}</div>}</> : <span>Add one or more cards to your wallet to compare rewards.</span>}</div>}
-    <p className="form-privacy"><LockKeyhole size={13} /> Estimates use card rules; prior monthly cap usage isn’t tracked.</p>
-  </section></div>;
 }
 
 export default function LootWalletApp() {
@@ -466,7 +457,6 @@ export default function LootWalletApp() {
   const [actionError, setActionError] = useState("");
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showCardCatalog, setShowCardCatalog] = useState(false);
-  const [showRoutingSheet, setShowRoutingSheet] = useState(false);
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [selectedCardId, setSelectedCardId] = useState("");
@@ -475,12 +465,6 @@ export default function LootWalletApp() {
   const [issuers, setIssuers] = useState<Issuer[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
-  const [lastFour, setLastFour] = useState("");
-  const [routeMerchant, setRouteMerchant] = useState("");
-  const [routeAmount, setRouteAmount] = useState("");
-  const [routeResult, setRouteResult] = useState<RoutingRecommendation | null>(null);
-  const [routeLoading, setRouteLoading] = useState(false);
-  const [routeError, setRouteError] = useState("");
 
   const month = useMemo(() => {
     const current = new Date();
@@ -656,9 +640,9 @@ export default function LootWalletApp() {
     setBusy(true);
     setActionError("");
     try {
-      await cardsApi.add(token, { card_product_id: product.id, ...(lastFour ? { last_four: lastFour } : {}), is_default: userCards.length === 0 });
+      await cardsApi.add(token, { card_product_id: product.id, is_default: userCards.length === 0 });
       await refreshDashboard(token);
-      setLastFour(""); setCatalogSearch(""); setShowCardCatalog(false);
+      setCatalogSearch(""); setShowCardCatalog(false);
       showToast(`${product.name} added to your wallet.`);
     } catch (reason) {
       setActionError(reason instanceof Error ? reason.message : "Could not add this card.");
@@ -703,18 +687,6 @@ export default function LootWalletApp() {
     } finally { setBusy(false); }
   }
 
-  async function getRecommendation(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token) return;
-    setRouteError(""); setRouteResult(null); setRouteLoading(true);
-    try {
-      const result = await routing.recommend(token, { merchant_name: routeMerchant.trim(), amount: Number(routeAmount) });
-      setRouteResult(result);
-    } catch (reason) {
-      setRouteError(reason instanceof Error ? reason.message : "Could not compare cards.");
-    } finally { setRouteLoading(false); }
-  }
-
   function handleTabChange(tab: TabKey) {
     setActiveTab(tab);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -731,7 +703,7 @@ export default function LootWalletApp() {
         <Header user={user} isDark={isDark} onThemeToggle={toggleTheme} onNotify={() => showToast("You’re all caught up.")} onProfile={() => handleTabChange("profile")} />
         {loadError && <div className="inline-error"><span>{loadError}</span><button type="button" onClick={() => { setLoadError(""); setLoadingData(true); setReloadAttempt((value) => value + 1); }}><RotateCcw size={14} /> Retry</button></div>}
         {loadingData && <div className="inline-loading">Refreshing your account…</div>}
-        {activeTab === "home" && <HomeScreen user={user} transactions={transactionRecords} categories={categories} report={report} showBalance={showBalance} onBalanceToggle={() => setShowBalance((value) => !value)} onTabChange={handleTabChange} onAddTransaction={() => { setActionError(""); setShowAddSheet(true); }} onRecommend={() => { setRouteError(""); setRouteResult(null); setRouteMerchant(""); setRouteAmount(""); setShowRoutingSheet(true); }} />}
+        {activeTab === "home" && <HomeScreen user={user} transactions={transactionRecords} categories={categories} report={report} showBalance={showBalance} onBalanceToggle={() => setShowBalance((value) => !value)} onTabChange={handleTabChange} onAddTransaction={() => { setActionError(""); setShowAddSheet(true); }} />}
         {activeTab === "activity" && <ActivityScreen transactions={transactionRecords} selectedPeriod={selectedPeriod} onSelectPeriod={setSelectedPeriod} report={report} totalTransactions={Number(summary?.total_transactions ?? 0)} loadingMore={loadingMoreTransactions} onLoadMore={loadMoreTransactions} />}
         {activeTab === "wallet" && <WalletScreen cards={userCards} onAdd={() => { setActionError(""); setCatalogLoading(true); setShowCardCatalog(true); }} onRemove={removeCard} onDefault={makeDefault} onRename={renameCard} />}
         {activeTab === "insights" && <InsightsScreen categories={categories} report={report} utilization={utilization} />}
@@ -741,8 +713,7 @@ export default function LootWalletApp() {
 
       {toast && <div className="toast" role="status"><Check size={16} />{toast}</div>}
       {showAddSheet && <AddTransactionSheet cards={userCards} merchant={merchant} amount={amount} selectedCardId={selectedCardId} smsBody={smsBody} busy={busy} error={actionError} onMerchant={setMerchant} onAmount={setAmount} onCard={setSelectedCardId} onSmsBody={setSmsBody} onSmsSubmit={importSmsTransaction} onClose={() => setShowAddSheet(false)} onSubmit={addTransaction} />}
-      {showCardCatalog && <CardCatalogSheet products={catalogProducts} issuers={issuers} search={catalogSearch} lastFour={lastFour} busy={busy} error={actionError} loading={catalogLoading} onSearch={setCatalogSearch} onLastFour={setLastFour} onClose={() => setShowCardCatalog(false)} onAdd={addCard} />}
-      {showRoutingSheet && <RoutingSheet merchant={routeMerchant} amount={routeAmount} result={routeResult} busy={routeLoading} error={routeError} onMerchant={setRouteMerchant} onAmount={setRouteAmount} onClose={() => setShowRoutingSheet(false)} onSubmit={getRecommendation} />}
+      {showCardCatalog && <CardCatalogSheet products={catalogProducts} issuers={issuers} search={catalogSearch} busy={busy} error={actionError} loading={catalogLoading} onSearch={setCatalogSearch} onClose={() => setShowCardCatalog(false)} onAdd={addCard} />}
     </main>
   );
 }
