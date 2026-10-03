@@ -11,6 +11,8 @@ Loot Wallet tracks credit card purchases, compares card rewards, and shows where
 - View recent activity, monthly totals, spending categories, and card utilization.
 - Install the responsive client as an iOS app with Capacitor.
 
+For the full product, architecture, data model, API, reward logic, setup, and current limitations, see the [Loot Wallet project guide](docs/loot-wallet-project-guide.md).
+
 Purchase records and user accounts persist in the configured database. The local default is SQLite; PostgreSQL can be configured with `DATABASE_URL`. Merchant classification uses local keyword rules and can use the OpenAI API when a key is configured.
 
 ## Quick start
